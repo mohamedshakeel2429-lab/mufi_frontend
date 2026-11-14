@@ -10,13 +10,21 @@ import {
 import { mlEngine, MODEL_COLUMNS } from './mlEngine';
 
 const FASTAPI_STORAGE_KEY = 'estatiq_fastapi_url';
+const PRODUCTION_API_URL = 'https://mufi-backend.onrender.com';
 
 export function getApiBaseUrl(): string {
   const custom = getConfiguredFastApiUrl();
   if (custom) return custom;
   const envUrl = (import.meta as { env?: Record<string, string> }).env?.VITE_API_URL;
   if (envUrl) return envUrl.replace(/\/+$/, '');
+  // Vercel serves the SPA separately from the Render API. Use the deployed API
+  // by default in production; local development can continue using same-origin.
+  if ((import.meta as { env?: Record<string, boolean> }).env?.PROD) return PRODUCTION_API_URL;
   return '';
+}
+
+function apiUrl(path: string): string {
+  return `${getApiBaseUrl()}${path}`;
 }
 
 export function getConfiguredFastApiUrl(): string {
@@ -45,8 +53,7 @@ export function setConfiguredFastApiUrl(url: string): void {
 export async function predictPropertyPrice(
   request: PredictionRequest
 ): Promise<PredictionResponse> {
-  const baseUrl = getApiBaseUrl();
-  const endpoint = `${baseUrl}/api/predict`;
+  const endpoint = apiUrl('/api/predict');
 
   try {
     const response = await fetch(endpoint, {
@@ -77,7 +84,7 @@ export async function predictPropertyPrice(
         return {
           ...fallbackCalc,
           ...data,
-          execution_mode: baseUrl ? 'fastapi_backend' : (data.execution_mode || 'trained_ml_engine'),
+          execution_mode: getApiBaseUrl() ? 'fastapi_backend' : (data.execution_mode || 'trained_ml_engine'),
         };
       }
     }
@@ -94,8 +101,7 @@ export async function predictPropertyPrice(
  * GET /api/analytics
  */
 export async function fetchAnalyticsSummary(): Promise<AnalyticsSummary> {
-  const baseUrl = getApiBaseUrl();
-  const endpoint = `${baseUrl}/api/analytics`;
+  const endpoint = apiUrl('/api/analytics');
 
   try {
     const res = await fetch(endpoint);
@@ -112,8 +118,7 @@ export async function fetchAnalyticsSummary(): Promise<AnalyticsSummary> {
  * GET /api/model-performance
  */
 export async function fetchModelPerformance(): Promise<Record<MLModelType, ModelMetrics>> {
-  const baseUrl = getApiBaseUrl();
-  const endpoint = `${baseUrl}/api/model-performance`;
+  const endpoint = apiUrl('/api/model-performance');
 
   try {
     const res = await fetch(endpoint);
@@ -130,8 +135,7 @@ export async function fetchModelPerformance(): Promise<Record<MLModelType, Model
  * GET /api/feature-importance
  */
 export async function fetchFeatureImportance(): Promise<FeatureImportanceItem[]> {
-  const baseUrl = getApiBaseUrl();
-  const endpoint = `${baseUrl}/api/feature-importance`;
+  const endpoint = apiUrl('/api/feature-importance');
 
   try {
     const res = await fetch(endpoint);
@@ -154,8 +158,7 @@ export async function fetchHealthStatus(): Promise<{
   modelColumns: readonly string[];
   datasetRecords: number;
 }> {
-  const baseUrl = getApiBaseUrl();
-  const endpoint = `${baseUrl}/api/health`;
+  const endpoint = apiUrl('/api/health');
 
   try {
     const res = await fetch(endpoint);
@@ -191,7 +194,7 @@ export async function compareModels(input: PropertyInput): Promise<{
   };
 }> {
   try {
-    const res = await fetch('/api/predict/compare', {
+    const res = await fetch(apiUrl('/api/predict/compare'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),
@@ -236,7 +239,7 @@ export async function predictBatch(
   results: Array<PredictionResponse & { index: number }>;
 }> {
   try {
-    const res = await fetch('/api/predict/batch', {
+    const res = await fetch(apiUrl('/api/predict/batch'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ properties }),
@@ -287,7 +290,7 @@ export async function fetchDatasetRecords(params?: {
   }
 
   try {
-    const res = await fetch(`/api/dataset?${query.toString()}`);
+    const res = await fetch(apiUrl(`/api/dataset?${query.toString()}`));
     if (res.ok) {
       return await res.json();
     }
@@ -309,7 +312,7 @@ export async function fetchDatasetRecords(params?: {
  */
 export async function fetchModelsMetadata() {
   try {
-    const res = await fetch('/api/models');
+    const res = await fetch(apiUrl('/api/models'));
     if (res.ok) {
       return await res.json();
     }
